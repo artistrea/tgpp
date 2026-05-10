@@ -31,6 +31,10 @@ class Link():
             tau_i = np.floor(tau / step).astype(int)
 
             for i in range(0, num_paths):
+                if tau_i[i] >= len(tx_time):
+                    # skip paths that arrive after end of time axis
+                    continue
+
                 rx[i, tau_i[i]:] = a[i] * np.exp(
                     -2j * np.pi * (
                         (tx_f_c + doppler[i]) * tau[i]
