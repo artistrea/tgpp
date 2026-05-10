@@ -211,6 +211,7 @@ def plot_doppler_spectrum(
     title="Espectro Doppler",
     velocity=None,
     highlight_los=True,
+    scenario=None
 ):
     if ax is None:
         fig, ax = plt.subplots()
@@ -235,6 +236,9 @@ def plot_doppler_spectrum(
 
     if velocity is not None:
         title = f"{title} — v = {velocity} m/s"
+
+    if scenario is not None:
+        title += f" - {scenario}"
 
     ax.set_title(title)
     ax.set_xlabel("Desvio Doppler [Hz]")
@@ -279,7 +283,7 @@ def plot_received_signal(
 
     ax.set_title(title)
     ax.set_xlabel("Tempo [s]")
-    ax.set_ylabel(r"$|r(t)|$")
+    ax.set_ylabel(r"$|\tilde{r}(t)|$")
 
     if xlim is not None:
         ax.set_xlim(xlim)
@@ -344,6 +348,7 @@ def plot_time_autocorrelation(
     ax=None,
     velocity=None,
     max_doppler=None,
+    scenario=None
 ):
     t = np.logspace(
         np.log10(t_min),
@@ -374,7 +379,10 @@ def plot_time_autocorrelation(
         ax.vlines(tc_2, -0.1, 1.1, linestyle=":", color="k")
         ax.hlines(threshold_2, t[0], t[-1], linestyle=":", color="k")
 
-    title = []
+    title = ["Autocorr. temporal"]
+
+    if scenario is not None:
+        title.append(scenario)
 
     if tc_1 is not None:
         title.append(rf"$T_C({threshold_1}) = {tc_1 * 1e3:.2g}$ ms")
@@ -432,6 +440,7 @@ def plot_frequency_autocorrelation(
     n_points=10000,
     ax=None,
     rms_delay_spread=None,
+    scenario=None
 ):
     f = np.logspace(
         np.log10(f_min),
@@ -462,7 +471,10 @@ def plot_frequency_autocorrelation(
         ax.vlines(bc_2, -0.1, 1.1, linestyle=":", color="k")
         ax.hlines(threshold_2, f[0], f[-1], linestyle=":", color="k")
 
-    title = []
+    title = ["Autocorr. em frequência"]
+
+    if scenario is not None:
+        title.append(scenario)
 
     if bc_1 is not None:
         title.append(rf"$B_C({threshold_1}) = {bc_1 / 1e6:.2g}$ MHz")
@@ -471,7 +483,7 @@ def plot_frequency_autocorrelation(
         title.append(rf"$B_C({threshold_2}) = {bc_2 / 1e6:.2g}$ MHz")
 
     if rms_delay_spread is not None:
-        title.append(rf"$\rho_\tau = {rms_delay_spread * 1e6:.2g}\, \mu s$")
+        title.append(rf"$\sigma_\tau = {rms_delay_spread * 1e6:.2g}\, \mu s$")
 
     ax.set_title(", ".join(title))
 
@@ -486,6 +498,21 @@ def plot_frequency_autocorrelation(
     ax.set_ylabel(r"$|\rho_{TT}(\kappa,0)|$")
 
     return ax
+
+def compute_delay_spread(tau, cluster_pow):
+    omega_c = np.sum(cluster_pow)
+
+    tau_mean = np.sum(
+        tau * cluster_pow
+    ) / omega_c
+
+    sigma_tau = np.sqrt(
+        np.sum(
+            cluster_pow * (tau - tau_mean)**2
+        ) / omega_c
+    )
+
+    return sigma_tau
 
 
 # ============================================================
