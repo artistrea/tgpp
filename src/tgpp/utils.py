@@ -1,6 +1,183 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from tgpp.geometry import Vec3
+from tgpp.channel.tgpp_channel import TGPPChannelModelEnum, _get_los_thr
+
+
+def plot_link(link, show_clusters=True, cluster_scale=1.0):
+    tx = link.tx
+    rx = link.rx
+
+    tx_pos = np.array(tx.pos.to_list())
+    rx_pos = np.array(rx.pos.to_list())
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # --- TX and RX points ---
+    ax.scatter(*tx_pos, c='red', s=80, label='TX (BS)')
+    ax.scatter(*rx_pos, c='blue', s=80, label='RX (UT)')
+
+    # --- Link line ---
+    ax.plot(
+        [tx_pos[0], rx_pos[0]],
+        [tx_pos[1], rx_pos[1]],
+        [tx_pos[2], rx_pos[2]],
+        'k--',
+        linewidth=1.5,
+        label='Link'
+    )
+
+    # --- Velocity vector (at RX) ---
+    if hasattr(rx, "velocity") and rx.velocity is not None:
+        vdir = np.array(rx.speed_direction.to_list())
+        v = rx.velocity * vdir * 20
+
+        ax.quiver(
+            rx_pos[0], rx_pos[1], rx_pos[2],
+            v[0], v[1], v[2],
+            color='green',
+            linewidth=2,
+            label='RX velocity'
+        )
+
+    # --- Channel clusters (if available) ---
+    if show_clusters and hasattr(link.chn, "cluster_power"):
+        # We assume cluster_power exists; but we need some geometry.
+        # If your model has angles/delays, replace this part accordingly.
+
+        cp = np.array(link.chn.cluster_power)
+        cp = cp / (np.max(cp) + 1e-12)
+
+        # fake angular spread visualization (placeholder)
+        rng = np.random.default_rng(0)
+        n = len(cp)
+
+        # random directions around RX for visualization only
+        dirs = rng.normal(size=(n, 3))
+        dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+
+        lengths = cluster_scale * cp
+
+        for i in range(n):
+            p0 = rx_pos
+            p1 = rx_pos + dirs[i] * lengths[i]
+
+            ax.plot(
+                [p0[0], p1[0]],
+                [p0[1], p1[1]],
+                [p0[2], p1[2]],
+                alpha=0.4
+            )
+
+    # --- Formatting ---
+    ax.set_xlabel("X (m)")
+    ax.set_ylabel("Y (m)")
+    ax.set_zlabel("Z (m)")
+    ax.set_title("Link Geometry Visualization")
+
+    ax.legend()
+
+    # equal aspect (important for geometry)
+    all_pts = np.vstack([tx_pos, rx_pos])
+    max_range = (all_pts.max(axis=0) - all_pts.min(axis=0)).max()
+
+    mid = all_pts.mean(axis=0)
+
+    ax.set_xlim(mid[0] - max_range, mid[0] + max_range)
+    ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
+    ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
+    # ax.set_zlim(0)
+
+        # --- Ground plane (z = 0) ---
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+
+    xx, yy = np.meshgrid(
+        np.linspace(x_min, x_max, 10),
+        np.linspace(y_min, y_max, 10)
+    )
+    zz = np.zeros_like(xx)
+
+    ax.plot_surface(
+        xx, yy, zz,
+        alpha=0.2,
+        color='gray',
+        linewidth=0,
+        shade=False
+    )
+    return fig, ax
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+TGPP_CHANNEL_MODEL_ENUM_TO_READABLE = {
+    TGPPChannelModelEnum.UMa: "UMa",
+    TGPPChannelModelEnum.UMi: "UMi",
+    TGPPChannelModelEnum.IndoorOpenOffice: "InH-Office",
+}
+
+def plot_los_vs_distance(links, d_max=1000, n=500):
+    d = np.linspace(1, d_max, n)
+
+    plt.figure(figsize=(8, 5))
+
+    for l in links:
+        model = l.chn.channel_model
+
+        p = np.zeros_like(d)
+
+        # =====================================================
+        # Curva teórica do próprio link
+        # =====================================================
+
+        for i, di in enumerate(d):
+            p[i] = _get_los_thr(di, l.rx.pos.z, model)
+
+        line = plt.plot(
+            d,
+            p,
+            label=TGPP_CHANNEL_MODEL_ENUM_TO_READABLE.get(model, str(model))
+        )
+
+        # =====================================================
+        # Realização
+        # =====================================================
+
+        dx = l.tx.pos.x - l.rx.pos.x
+        dy = l.tx.pos.y - l.rx.pos.y
+
+        d_2d = np.sqrt(dx**2 + dy**2)
+
+        p_realization = _get_los_thr(
+            d_2d,
+            l.rx.pos.z,
+            model
+        )
+
+        plt.scatter(
+            d_2d,
+            p_realization,
+            marker='x',
+            s=120,
+            linewidths=3,
+            color=line[0].get_color(),
+            zorder=10,
+            label=f"Realização simulada ({TGPP_CHANNEL_MODEL_ENUM_TO_READABLE.get(model, str(model))})"
+        )
+
+    plt.xlabel("Distância 2D (m)")
+    plt.ylabel("P(LoS)")
+    plt.title("Probabilidade de Visada Direta")
+
+    plt.grid(True)
+    plt.legend()
+
+    plt.ylim(-0.05, 1.05)
+
+    plt.show()
 
 # ============================================================
 # PDP — Power Delay Profile

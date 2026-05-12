@@ -1,0 +1,10 @@
+- É estranho Indoor Open Office não limitar o cálculo de probabilidade de visada direta;
+    Existe algum motivo?
+    Existe alguma limitação de distância máxima?
+- Necessário numeração nas páginas;
+- Necessário numeração nas fórmulas;
+- Apresentação gráfica poderia estar melhor.
+
+Outras notas:
+- O gráfico de PLoS estava errado para UMa, devido à consideração do valor errado da altura do usuário;
+    - Corrigido para o relatório.

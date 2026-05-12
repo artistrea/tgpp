@@ -8,6 +8,9 @@ class Vec3():
     y: float
     z: float
 
+    def to_list(self):
+        return [self.x, self.y, self.z]
+
     def __add__(self, other):
         if isinstance(other, int) or isinstance(other, float):
             return Vec3(self.x + other, self.y + other, self.z + other)

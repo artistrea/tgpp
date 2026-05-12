@@ -11,6 +11,52 @@ class TGPPChannelModelEnum(Enum):
     IndoorOpenOffice = auto()
 
 
+def _get_los_thr(d_2d, h_ut, channel_model):
+    if channel_model == TGPPChannelModelEnum.IndoorOpenOffice:
+        if d_2d <= 5.:
+            return 1
+        elif d_2d <= 49.:
+            return np.exp(-(d_2d-5.)/70.8)
+        else:
+            return np.exp(-(d_2d-49.)/211.7)*0.54
+    elif channel_model == TGPPChannelModelEnum.UMa:
+        if d_2d <= 18:
+            return 1
+        else:
+            # h_ut = rx.pos.z
+            if h_ut <= 13.:
+                c = 0
+            else:
+                c = ((h_ut-13.)/10)**1.5
+
+            term1 = (
+                18 / d_2d
+                + np.exp(-d_2d / 63)
+                * (1 - 18 / d_2d)
+            )
+
+            term2 = (
+                1
+                + c
+                * (5 / 4)
+                * (d_2d / 100) ** 3
+                * np.exp(-d_2d / 150)
+            )
+            return min(term1 * term2, 1)
+    elif channel_model == TGPPChannelModelEnum.UMi:
+        if d_2d <= 18:
+            return 1
+        else:
+            term = (
+                18 / d_2d
+                + np.exp(-d_2d / 36)
+                * (1 - 18 / d_2d)
+            )
+
+            return min(term, 1)
+
+    return 1
+
 def _get_aoa_azim_std_stats(
     f_c: float,
     propagation_model: TGPPChannelModelEnum,
@@ -205,53 +251,13 @@ class TGPPChannel(Channel):
         self.channel_model = channel_model
 
     def evaluate_los(self, rng):
-        d_2d = abs(
-            self.tx.pos - self.rx.pos - Vec3(0, 0, self.tx.pos.z-self.rx.pos.z)
-        )
-        if self.channel_model == TGPPChannelModelEnum.IndoorOpenOffice:
-            if d_2d <= 5.:
-                return np.ones(1)
-            elif d_2d <= 49.:
-                return rng.uniform(0, 1, (1)) < np.exp(-(d_2d-5.)/70.8)
-            else:
-                return rng.uniform(0, 1, (1)) < np.exp(-(d_2d-49.)/211.7)*0.54
-        elif self.channel_model == TGPPChannelModelEnum.UMa:
-            if d_2d <= 18:
-                return np.ones((1))
-            else:
-                h_ut = self.rx.pos.z
-                if h_ut <= 13.:
-                    c = 0
-                else:
-                    c = ((h_ut-13.)/10)**1.5
+        dx = self.tx.pos.x - self.rx.pos.x
+        dy = self.tx.pos.y - self.rx.pos.y
 
-                term1 = (
-                    18 / d_2d
-                    + np.exp(-d_2d / 63)
-                    * (1 - 18 / d_2d)
-                )
+        d_2d = np.sqrt(dx**2 + dy**2)
 
-                term2 = (
-                    1
-                    + c
-                    * (5 / 4)
-                    * (d_2d / 100) ** 3
-                    * np.exp(-d_2d / 150)
-                )
-                return rng.uniform(0, 1, (1)) < term1 * term2
-        elif self.channel_model == TGPPChannelModelEnum.UMi:
-            if d_2d <= 18:
-                return np.ones((1))
-            else:
-                term = (
-                    18 / d_2d
-                    + np.exp(-d_2d / 36)
-                    * (1 - 18 / d_2d)
-                )
-
-                return rng.uniform(0, 1, (1)) < term
-
-        return np.ones(1)
+        thr = _get_los_thr(d_2d, self.rx.pos.z, self.channel_model)
+        return rng.uniform(0, 1) < thr
 
     def evaluate_delays(self, rng):
         delay_spread_mean, delay_spread_std = _get_delay_spread_stats(
